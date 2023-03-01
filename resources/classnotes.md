@@ -743,3 +743,226 @@ C doesn't keep track of what type is the union. So usually you would create a ty
 
 ask more about 
 The use of fscanf(), fgets() and sscanf();
+
+## 2/21/23
+### Static Linking
+- Compile time: separately compiled reolocatable object files
+### Dynamic linking
+
+### Linker
+Linker? Program can be written as a collection of smaller source files. 
+Efficiency.
+- Time: separete compilation
+- Space: libraries
+
+### Symbol resolution
+- Program define and reference symbols (global variables and functions)
+### Relocation:
+- erge separate code and data sections into single sections. Relocates symbol
+
+### Object Files:
+- relocatable object file (.o file)
+- executable object file (a.out file)
+- shared obejct file (.so file)
+
+### ELF file *** study this??
+- ELF header: word size, byte ordering, file type, machine type, etc.
+- Segnment: tells the operating system where the text segment is, where the code is.
+- text section: code
+- rodata section: read only data
+- data section: global variables
+- bss section: unintialized global variables
+- symtab section: linker section
+- .rel.txt section: linker section
+- .rel.data section: linker section
+- .debug section: linker section
+- seciton header table
+
+
+### Linker Symbols
+- Global symbol - It can be seen by other modules
+- External symbols - It's defined by other modules
+- local symbols - Linker don't care about local variables
+
+```C
+int sum(int *a, int n);
+int array[2] = {1,2};
+
+int main(){
+    int val = sum(array,2);
+}
+local symbols is not the same as local variables
+int f(){
+    static int x = 0;
+    return x;
+}
+int g(){
+    static int x = 1;
+    return x;
+}
+```
+
+```C
+//p1.c has this function
+int foo = 5; // this is a weak symbol
+p1(){
+}
+//p2.c has this funciton
+int foo; // this is a weak symbol
+p2(){
+}
+```
+
+multiply defined error - it comes from linker, doesn't come from the compiler.
+
+Linker's symbol rules
+- Rule 1: Multiple strong symbols are not allowed
+  - Linker error
+  - Each item only defined once
+- Rule 2: Strong symbol and multiple weak symbols, choose the strong symbol
+- Rule3: If there are multiple weak symbols, choose n arbitrary one
+  - can over ride this with gcc -fno-common
+
+
+Linker puzzles.
+Use static if you can
+use extern if you can reference an external global variables
+
+lib/crt0.o
+
+### in the usr/lib/x86_64_linux-gnu directory
+
+```bash
+ar t libc.a | less
+ar t libc.a | wc -l     - passing in -l counts the line instead of word count
+ar t libc.a printf.o
+cd /temp
+```
+### in the tmp directory
+```bash
+ar x /usr/lib/x libc.a printf.o
+symbol table
+nm command stand sfor name list
+nm printf.o
+ls -l printf.o
+objdump -d printf.o
+```
+READELF command
+ar stands for archive
+
+### This is the right
+gcc -L. libtest.o -lmine -lm -lc
+-L modify the search path
+the dot(.) after L is to search in the current directory.
+- -lmine expands to libmine.a
+- -l = (lib)
+- -libiberty turn into liberty.a
+- -lm expands to libm.a
+- -lc expands to libc.a
+
+### This is wrong
+gcc -L. -lmine libtest.o
+when it reach -lmine, there's nothing undefined references of symbol.
+
+static libraries are fairly large
+- executable has a lot of junk in them.
+### Static linking
+cc --static hello_world.c
+strip a.out
+once you executable. If it's fully linked, you don't need to have a symbol table
+nm a.out
+capitcalized symbol is BSS: global variables
+.
+
+T is global funcitons
+t is static funcitons.
+
+### dynamic linking 
+cc hello_world .c
+
+dynamic linking can occur when executable is first loaded and run (load-time linking).
+## 2/28/23
+### Dynamic Memory allocation
+- Explicit allocator, applications allocates and frees space
+- implicit allocator, application allocates, but ```does not free space```
+```c
+#include <stdlib.h>
+
+void *malloc(size_t size)
+- successful: if size == 0, returns NULL
+- Unsuccessful: returns NULL and sets errno
+
+//void * is created so it's generic and fit all types
+void free (void *p)
+- returns the block pointed at by p to pool of available memory.
+```
+- errno is a global variable.
+
+perror()
+calloc: verision of malloc that initializes allocated block to zero. 
+- Takes in an array. and zero the contents of the array. If you do malloc, the content of the array will be some kind of garbage value
+realloc: User input. Changes the size of a previously allocated block.
+sbrk: Used internally by allocator to grow or shrink the heap. This is a system call.
+
+Only casts when necessary. 
+
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+void foo(int n) {
+    int i, *p;
+    /* Allocate a block of n ints */
+    p = (int *) malloc(n * sizeof(int));
+    if (p == NULL) {
+        perror("malloc");
+        exit(0);
+    }
+    
+    /* Initialize allocated block */
+    for (i=0; i<n; i++)
+      p[i] = i;
+    /* Return allocated block to the heap */
+    free(p);
+}
+```
+Things that can go wrong
+- Having a pointer that points to a bad pointer.
+- Dereference pointer 
+- variable that's not initialized
+- storage leak, you allocate but does not free the storage
+- Don't use NULL pointer to do operations.
+
+Odd number of words will be return the next even number of words. See the slides for more info.
+
+Application
+- can issue malloc and free requests
+Allocators
+- can't control number or size of allocated blocks
+- must align blocks to satisfy all alignment requirements
+- must allocate block from free memory
+- must respond immedediately to malloc requests
+  - can't reorder of buffer requests, think of concurrency, where multiple request at the same time 
+- pointer swizzling 
+- Can't move the allocated blocks once they're malloced
+  - A disc can be defragmented
+
+Performace of an allocator:
+- speed/throughput = number of completed requests per unit time.
+- peak memory utilization
+
+Aggregate payload P
+Current heap size H
+Peak memory utilizaiton after k+1 requests
+
+### Fragmentation 
+Internal fragmentation occurs if payload is smaller than block size
+- caused by overhead of maintaining heap data structures.
+- Padding for allignment purposes
+- Explicit policy decision
+
+External Fragmentation occurs when there's enough agggregate heap memory, but no single free block is large enough.
+
+### Implementation
+- How much memory to free given just a pointer?
+- how to keep track of the free blocks
